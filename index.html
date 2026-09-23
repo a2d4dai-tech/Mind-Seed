@@ -276,6 +276,17 @@
   .scatter-item.raw{ max-width:230px; font-weight:300; font-size:.95rem; }
   .scatter-item.abstract{ font-family:'Shippori Mincho', serif; font-weight:500; color:var(--ink); max-width:200px; }
 
+  .scatter-item.reframe-pair{
+    display:flex;
+    align-items:baseline;
+    gap:.45em;
+    max-width:280px;
+    font-family:'Shippori Mincho', serif;
+  }
+  .scatter-item.reframe-pair .orig{ color:var(--ink-dim); }
+  .scatter-item.reframe-pair .arrow{ color:var(--ember-dim); font-size:.75em; }
+  .scatter-item.reframe-pair .reframed{ color:var(--ember); font-weight:500; }
+
   .center-orb{
     position:fixed;
     top:50%;
@@ -374,6 +385,7 @@
   <div class="overlay-label" id="overlayLabel">これまでのことば</div>
   <div class="scatter-layer" id="scatterRaw"></div>
   <div class="scatter-layer" id="scatterAbstract" hidden></div>
+  <div class="scatter-layer" id="scatterReframe" hidden></div>
   <div class="analysis-layer" id="analysisLayer" hidden>
     <p class="analysis-text" id="analysisText"></p>
   </div>
@@ -583,13 +595,14 @@
     return dedupe(sessionSentences);
   }
 
-  // -- archive overlay: raw words -> abstract feelings -> AI analysis --
+  // -- archive overlay: raw words -> abstract feelings -> reframe -> AI analysis --
 
   var overlayEl = document.getElementById('overlay');
   var overlayCloseBtn = document.getElementById('overlayClose');
   var overlayLabel = document.getElementById('overlayLabel');
   var scatterRaw = document.getElementById('scatterRaw');
   var scatterAbstract = document.getElementById('scatterAbstract');
+  var scatterReframe = document.getElementById('scatterReframe');
   var analysisLayer = document.getElementById('analysisLayer');
   var analysisText = document.getElementById('analysisText');
   var centerOrb = document.getElementById('centerOrb');
@@ -599,8 +612,12 @@
   var overlayStage = 'raw';
   var rawSentences = [];
   var abstractWords = [];
+  var reframedPairs = [];
 
-  function scatterItems(container, items, cls, sizeMin, sizeMax){
+  // Scatters n items across the screen in a shuffled grid (so nothing
+  // clusters or overlaps too much), then lets `place(el, item, idx)` fill
+  // in each element's content.
+  function scatterLayout(container, items, place){
     container.innerHTML = '';
     var n = items.length;
     if (!n) return;
@@ -616,22 +633,19 @@
       var j = Math.floor(Math.random() * (i + 1));
       var t = cells[i]; cells[i] = cells[j]; cells[j] = t;
     }
-    items.forEach(function(text, idx){
+    items.forEach(function(item, idx){
       var cell = cells[idx % cells.length];
       var top = cell[0] * cellH + cellH * 0.18 + Math.random() * cellH * 0.5;
       var left = cell[1] * cellW + cellW * 0.12 + Math.random() * cellW * 0.55;
       top = Math.min(92, Math.max(8, top));
       left = Math.min(90, Math.max(8, left));
-      var size = sizeMin + Math.random() * (sizeMax - sizeMin);
       var rot = Math.random() * 6 - 3;
       var el = document.createElement('div');
-      el.className = 'scatter-item ' + cls;
-      el.textContent = text;
       el.style.top = top + '%';
       el.style.left = left + '%';
-      el.style.fontSize = size + 'rem';
       el.style.transform = 'translate(-50%, -50%) rotate(' + rot + 'deg)';
       el.style.transitionDelay = (idx * 0.06) + 's';
+      place(el, item, idx);
       container.appendChild(el);
     });
     requestAnimationFrame(function(){
@@ -641,7 +655,42 @@
     });
   }
 
+  function scatterItems(container, items, cls, sizeMin, sizeMax){
+    scatterLayout(container, items, function(el, text){
+      var size = sizeMin + Math.random() * (sizeMax - sizeMin);
+      el.className = 'scatter-item ' + cls;
+      el.textContent = text;
+      el.style.fontSize = size + 'rem';
+    });
+  }
+
+  function scatterPairs(container, pairs, sizeMin, sizeMax){
+    scatterLayout(container, pairs, function(el, pair){
+      var size = sizeMin + Math.random() * (sizeMax - sizeMin);
+      el.className = 'scatter-item reframe-pair';
+      el.style.fontSize = size + 'rem';
+      var orig = document.createElement('span');
+      orig.className = 'orig';
+      orig.textContent = pair.original;
+      var arrow = document.createElement('span');
+      arrow.className = 'arrow';
+      arrow.textContent = '→';
+      var reframed = document.createElement('span');
+      reframed.className = 'reframed';
+      reframed.textContent = pair.reframed;
+      el.appendChild(orig);
+      el.appendChild(arrow);
+      el.appendChild(reframed);
+    });
+  }
+
   function setHint(text){ overlayHint.textContent = text; }
+
+  function resetLayer(el){
+    el.hidden = true;
+    el.style.opacity = '';
+    el.innerHTML = '';
+  }
 
   function openOverlay(){
     overlayStage = 'raw';
@@ -650,9 +699,8 @@
     overlayLabel.textContent = 'これまでのことば';
     scatterRaw.hidden = false;
     scatterRaw.style.opacity = '';
-    scatterAbstract.hidden = true;
-    scatterAbstract.style.opacity = '';
-    scatterAbstract.innerHTML = '';
+    resetLayer(scatterAbstract);
+    resetLayer(scatterReframe);
     analysisLayer.hidden = true;
     analysisLayer.style.opacity = '';
     analysisText.textContent = '';
@@ -715,7 +763,41 @@
       fadeLayer(scatterRaw, scatterAbstract);
       setTimeout(function(){
         centerOrb.disabled = false;
-        setHint('もう一度押すと、AIがここまでの感情を読み解く');
+        setHint('もう一度押すと、もう一つの見え方を添える');
+      }, 700);
+    }).catch(function(){
+      centerOrb.classList.remove('loading');
+      centerOrb.disabled = false;
+      setHint('うまくいきませんでした。もう一度押してみてください');
+    });
+  }
+
+  function runReframe(){
+    centerOrb.disabled = true;
+    centerOrb.classList.add('loading');
+    setHint('もう一つの見え方を探しています…');
+
+    fetch('/api/reframe', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sentences: rawSentences, words: abstractWords })
+    }).then(function(r){
+      if (!r.ok) throw new Error('bad_status');
+      return r.json();
+    }).then(function(data){
+      var pairs = data && data.pairs;
+      if (!Array.isArray(pairs) || !pairs.length) throw new Error('empty');
+      reframedPairs = pairs;
+      overlayStage = 'reframe';
+      centerOrb.classList.remove('loading');
+      centerOrb.disabled = true;
+      overlayLabel.textContent = 'もう一つの見え方';
+      setHint('');
+      scatterPairs(scatterReframe, reframedPairs, 0.85, 1.5);
+      fadeLayer(scatterAbstract, scatterReframe);
+      setTimeout(function(){
+        centerOrb.disabled = false;
+        setHint('もう一度押すと、AIがここまでの言葉を一つにまとめる');
       }, 700);
     }).catch(function(){
       centerOrb.classList.remove('loading');
@@ -732,7 +814,7 @@
     fetch('/api/analyze', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sentences: rawSentences, words: abstractWords })
+      body: JSON.stringify({ sentences: rawSentences, words: abstractWords, pairs: reframedPairs })
     }).then(function(r){
       if (!r.ok) throw new Error('bad_status');
       return r.json();
@@ -744,7 +826,7 @@
       overlayLabel.textContent = 'AIによる考察';
       setHint('');
       analysisText.textContent = data.text;
-      fadeLayer(scatterAbstract, analysisLayer);
+      fadeLayer(scatterReframe, analysisLayer);
       setTimeout(function(){ analysisText.classList.add('show'); }, 560);
     }).catch(function(){
       centerOrb.classList.remove('loading');
@@ -755,7 +837,8 @@
 
   centerOrb.addEventListener('click', function(){
     if (overlayStage === 'raw') runAbstraction();
-    else if (overlayStage === 'abstract') runAnalysis();
+    else if (overlayStage === 'abstract') runReframe();
+    else if (overlayStage === 'reframe') runAnalysis();
   });
 
   archiveBtn.addEventListener('click', openOverlay);

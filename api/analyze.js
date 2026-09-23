@@ -10,17 +10,25 @@ module.exports = async function handler(req, res) {
     const body = readJsonBody(req);
     const sentences = Array.isArray(body.sentences) ? body.sentences.filter(Boolean) : [];
     const words = Array.isArray(body.words) ? body.words.filter(Boolean) : [];
+    const pairs = Array.isArray(body.pairs) ? body.pairs.filter(Boolean) : [];
     if (!sentences.length) {
       res.status(200).json({ text: "" });
       return;
     }
 
+    const reframedLines = pairs
+      .map(function (p) { return (p && p.original) + " → " + (p && p.reframed); })
+      .join("\n");
+
     const userContent =
-      "ある人が内省ツールに書き留めてきた言葉の断片と、そこから抽出された感情の言葉があります。\n\n" +
+      "ある人が内省ツールに書き留めてきた言葉の断片、そこから抽出された感情の言葉、そして感情ごとに添えられた" +
+      "もう一つの見え方があります。\n\n" +
       "断片:\n" + sentences.map(function (s) { return "・" + s; }).join("\n") +
       "\n\n感情の言葉:\n" + words.join("、") +
-      "\n\nこれら全体を通して見えてくる感情の傾向やパターンについて、温かく、断定せず、押しつけがましくない口調で" +
-      "日本語で3〜4文の短い考察を書いてください。アドバイスや解決策ではなく、そっと気づきを差し出すような文章にしてください。";
+      (reframedLines ? "\n\nもう一つの見え方:\n" + reframedLines : "") +
+      "\n\nこれら全体を通して見えてくるものについて、温かく、断定せず、押しつけがましくない口調で" +
+      "日本語で3〜4文の短い考察を書いてください。アドバイスや解決策ではなく、そっと気づきを差し出すような文章にしてください。" +
+      "内容が重く、しんどいものであれば、無理に軽くしたり、なかったことにしたりせず、そのまま受け止めてください。";
 
     const text = await askClaude({
       model: "claude-sonnet-5",

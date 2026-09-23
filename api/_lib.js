@@ -29,11 +29,18 @@ const SUGGEST_WRAP_AFTER = 10;
 
 const ABSTRACT_SYSTEM =
   "あなたは、ある人が内省のために書き留めた言葉の断片から、その奥にある感情を読み取る役目です。" +
+  "書かれている内容の重さ・明るさを、そのまま正直に映してください(重ければ重いまま、軽ければ軽いままで構いません)。" +
   "説明や前置きは一切つけず、指示された形式だけを返してください。";
 
 const ANALYZE_SYSTEM =
   "あなたは、ある人が内省ツールに書き留めてきた言葉に、そっと寄り添う役目です。" +
-  "答えを出したり導いたりせず、気づきをそっと差し出すだけの、温かい書き手です。";
+  "答えを出したり導いたりせず、気づきをそっと差し出すだけの、温かい書き手です。" +
+  "内容が重く、しんどいものであれば、無理に明るくしたり軽く見せたりせず、そのまま受け止めてください。";
+
+const REFRAME_SYSTEM =
+  "あなたは、ある人の感情の言葉に、そっと別の見え方を添える役目です。重さやつらさを打ち消したり、" +
+  "軽くしたり、なかったことにしたりはしません。そのままの重さの上に、もう一つの視点をそっと重ねるだけです。" +
+  "断定せず、説教せず、短い言葉で。";
 
 async function askClaude({ model, system, userContent, maxTokens }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -100,6 +107,7 @@ module.exports = {
   SUGGEST_WRAP_AFTER,
   ABSTRACT_SYSTEM,
   ANALYZE_SYSTEM,
+  REFRAME_SYSTEM,
   askClaude,
   extractJson,
   readJsonBody,
