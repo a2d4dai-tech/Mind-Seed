@@ -35,6 +35,6 @@ module.exports = async function handler(req, res) {
       words: words.map(String).filter(function (w) { return w && w.trim(); }),
     });
   } catch (e) {
-    res.status(502).json({ error: "failed" });
+    res.status(502).json({ error: "failed", detail: String((e && e.message) || e) });
   }
 };

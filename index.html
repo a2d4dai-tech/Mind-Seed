@@ -404,7 +404,6 @@
   var currentQuestion = OPENING_QUESTION;
   var qaPairs = [];
   var fallbackIndex = 0;
-  var apiAvailable = true;
   var transitioning = false;
 
   function buildDots(){
@@ -440,8 +439,10 @@
     return q;
   }
 
+  // Tries the real AI question every round — a single failed call (a cold
+  // start, a brief network hiccup) no longer disables it for the rest of
+  // the visit, which was making the tiny fallback pool repeat endlessly.
   function askNextQuestion(){
-    if (!apiAvailable) return Promise.resolve(nextFallback());
     return fetch('/api/next-question', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -455,7 +456,6 @@
       }
       return data.question.trim();
     }).catch(function(){
-      apiAvailable = false;
       return nextFallback();
     });
   }
@@ -545,7 +545,6 @@
     currentQuestion = OPENING_QUESTION;
     qaPairs = [];
     fallbackIndex = 0;
-    apiAvailable = true;
     recapEl.hidden = true;
     restartBtn.classList.remove('show');
     document.getElementById('app').style.display = 'flex';

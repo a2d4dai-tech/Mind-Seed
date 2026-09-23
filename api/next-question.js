@@ -52,6 +52,6 @@ module.exports = async function handler(req, res) {
 
     res.status(200).json({ question: parsed.question.trim() });
   } catch (e) {
-    res.status(502).json({ error: "failed" });
+    res.status(502).json({ error: "failed", detail: String((e && e.message) || e) });
   }
 };
