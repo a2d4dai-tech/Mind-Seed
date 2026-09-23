@@ -1,0 +1,849 @@
+<title>Mind Seed</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500;600&family=Zen+Kaku+Gothic+New:wght@300;400;500&display=swap');
+
+  :root{
+    --bg:#000000;
+    --bg-deep:#050403;
+    --ink:#ece7e0;
+    --ink-dim:#8a8580;
+    --ember:#b08a5a;
+    --ember-dim:#4a3a26;
+    --hairline:#232019;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse 900px 700px at 50% 42%, var(--bg-deep) 0%, var(--bg) 70%);
+    color:var(--ink);
+    font-family:'Zen Kaku Gothic New', 'Hiragino Sans', sans-serif;
+    overflow:hidden;
+  }
+
+  #app{
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:8vh 6vw;
+  }
+
+  .stage{
+    width:min(640px, 88vw);
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2.4rem;
+    text-align:center;
+    cursor:text;
+  }
+
+  .stage.fade-out .question,
+  .stage.fade-out .answer{
+    opacity:0;
+    transform:translateY(-10px);
+    transition:opacity .5s ease, transform .5s ease;
+  }
+  .stage.fade-in .question,
+  .stage.fade-in .answer{
+    opacity:0;
+    transform:translateY(10px);
+  }
+  .question,
+  .answer{
+    opacity:1;
+    transform:translateY(0);
+    transition:opacity .55s ease .05s, transform .55s ease .05s;
+  }
+
+  .question{
+    font-family:'Shippori Mincho', serif;
+    font-weight:500;
+    font-size:clamp(1.05rem, 2.4vw, 1.45rem);
+    line-height:1.7;
+    letter-spacing:.03em;
+    color:var(--ink-dim);
+    text-wrap:balance;
+  }
+
+  .answer{
+    min-height:1.6em;
+    max-width:100%;
+    font-size:clamp(1.15rem, 3vw, 1.7rem);
+    line-height:1.7;
+    font-weight:300;
+    white-space:pre-wrap;
+    word-break:break-word;
+    outline:none;
+    caret-color:var(--ember);
+  }
+  .answer:empty::before{
+    content:"";
+  }
+
+  .progress{
+    position:fixed;
+    bottom:8vh;
+    left:50%;
+    transform:translateX(-50%);
+    display:flex;
+    gap:.6rem;
+  }
+  .progress .dot{
+    width:5px;
+    height:5px;
+    border-radius:50%;
+    background:var(--ember-dim);
+    transition:background .4s ease, transform .4s ease;
+  }
+  .progress .dot.done{ background:var(--ink-dim); }
+  .progress .dot.current{ background:var(--ember); transform:scale(1.6); }
+
+  .hint{
+    position:fixed;
+    bottom:4vh;
+    left:50%;
+    transform:translateX(-50%);
+    font-size:.68rem;
+    letter-spacing:.08em;
+    color:#3a3630;
+    transition:opacity .6s ease;
+  }
+  .hint.hide{ opacity:0; }
+
+  .thinking{
+    position:fixed;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    z-index:4;
+  }
+  .thinking-dot{
+    display:block;
+    width:6px;
+    height:6px;
+    border-radius:50%;
+    background:var(--ember);
+    animation:thinkPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes thinkPulse{
+    0%,100%{ opacity:.25; transform:scale(.85); }
+    50%{ opacity:1; transform:scale(1.15); }
+  }
+
+  /* recap */
+  .recap{
+    min-height:100vh;
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:10vh 6vw 6vh;
+    gap:2.6rem;
+  }
+  .recap-list{
+    width:min(560px, 88vw);
+    display:flex;
+    flex-direction:column;
+    gap:1.9rem;
+  }
+  .recap-item{
+    display:flex;
+    flex-direction:column;
+    gap:.55rem;
+    opacity:0;
+    transform:translateY(8px);
+    transition:opacity .8s ease, transform .8s ease;
+  }
+  .recap-item.show{ opacity:1; transform:translateY(0); }
+  .recap-item .q{
+    font-family:'Shippori Mincho', serif;
+    font-size:.85rem;
+    letter-spacing:.04em;
+    color:var(--ink-dim);
+  }
+  .recap-item .a{
+    font-size:1.05rem;
+    line-height:1.75;
+    font-weight:300;
+    white-space:pre-wrap;
+    padding-left:1rem;
+    border-left:1px solid var(--hairline);
+  }
+  .recap-item .a:empty::before{
+    content:"(こたえなかった)";
+    color:#3a3630;
+    font-size:.85rem;
+  }
+
+  .restart{
+    background:none;
+    border:none;
+    color:#4a4540;
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    font-size:.8rem;
+    letter-spacing:.1em;
+    padding:.6rem 1.2rem;
+    cursor:pointer;
+    opacity:0;
+    transition:opacity .8s ease, color .3s ease;
+  }
+  .restart.show{ opacity:1; }
+  .restart:hover, .restart:focus-visible{ color:var(--ember); }
+
+  /* archive trigger */
+  .archive-btn{
+    position:fixed;
+    right:1.8rem;
+    bottom:1.8rem;
+    width:11px;
+    height:11px;
+    border-radius:50%;
+    background:var(--ink);
+    border:none;
+    opacity:.4;
+    cursor:pointer;
+    padding:0;
+    transition:opacity .3s ease, transform .3s ease;
+    z-index:5;
+  }
+  .archive-btn:hover, .archive-btn:focus-visible{ opacity:.9; transform:scale(1.3); }
+
+  /* archive overlay: raw words -> abstract feelings -> AI analysis */
+  .overlay{
+    position:fixed;
+    inset:0;
+    background:var(--bg);
+    z-index:20;
+    overflow:hidden;
+  }
+  .overlay-close{
+    position:fixed;
+    top:1.6rem;
+    right:1.8rem;
+    background:none;
+    border:none;
+    color:#4a4540;
+    font-size:1.4rem;
+    line-height:1;
+    cursor:pointer;
+    z-index:25;
+    transition:color .3s ease;
+  }
+  .overlay-close:hover, .overlay-close:focus-visible{ color:var(--ink-dim); }
+
+  .overlay-label{
+    position:fixed;
+    top:1.8rem;
+    left:50%;
+    transform:translateX(-50%);
+    font-family:'Shippori Mincho', serif;
+    font-size:.8rem;
+    letter-spacing:.1em;
+    color:#4a4540;
+    z-index:24;
+  }
+
+  .scatter-layer{ position:absolute; inset:0; }
+  .scatter-item{
+    position:absolute;
+    opacity:0;
+    transition:opacity 1.1s ease;
+    color:var(--ink-dim);
+    line-height:1.55;
+    text-align:center;
+    white-space:pre-wrap;
+    pointer-events:none;
+  }
+  .scatter-item.show{ opacity:1; }
+  .scatter-item.raw{ max-width:230px; font-weight:300; font-size:.95rem; }
+  .scatter-item.abstract{ font-family:'Shippori Mincho', serif; font-weight:500; color:var(--ink); max-width:200px; }
+
+  .center-orb{
+    position:fixed;
+    top:50%;
+    left:50%;
+    transform:translate(-50%,-50%);
+    width:52px;
+    height:52px;
+    border-radius:50%;
+    background:var(--ink);
+    border:none;
+    cursor:pointer;
+    z-index:24;
+    box-shadow:0 0 24px rgba(236,231,224,.18);
+    transition:transform .3s ease, opacity .3s ease, box-shadow .3s ease;
+  }
+  .center-orb:hover, .center-orb:focus-visible{ transform:translate(-50%,-50%) scale(1.12); box-shadow:0 0 32px rgba(236,231,224,.3); }
+  .center-orb:disabled{ opacity:.25; cursor:default; box-shadow:none; }
+  .center-orb.loading{ animation:orbPulse 1.4s ease-in-out infinite; }
+  .center-orb.done{ opacity:0; pointer-events:none; }
+  @keyframes orbPulse{
+    0%,100%{ opacity:1; }
+    50%{ opacity:.35; }
+  }
+
+  .overlay-hint{
+    position:fixed;
+    bottom:3.4rem;
+    left:50%;
+    transform:translateX(-50%);
+    font-size:.75rem;
+    letter-spacing:.06em;
+    color:#4a4540;
+    z-index:24;
+    text-align:center;
+    max-width:80vw;
+    transition:opacity .4s ease;
+  }
+
+  .analysis-layer{
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:8vh 8vw;
+  }
+  .analysis-text{
+    max-width:560px;
+    font-family:'Shippori Mincho', serif;
+    font-size:clamp(1.05rem, 2.4vw, 1.3rem);
+    line-height:2;
+    color:var(--ink);
+    text-align:center;
+    opacity:0;
+    transform:translateY(8px);
+    transition:opacity 1.2s ease, transform 1.2s ease;
+    text-wrap:balance;
+  }
+  .analysis-text.show{ opacity:1; transform:translateY(0); }
+
+  @media (prefers-reduced-motion: reduce){
+    .question, .answer, .recap-item, .hint, .restart, .analysis-text{
+      transition:opacity .01s linear !important;
+      transform:none !important;
+    }
+    .scatter-item, .center-orb, .archive-btn{
+      transition:opacity .01s linear !important;
+      animation:none !important;
+    }
+    .thinking-dot{ animation:none !important; opacity:.7; }
+  }
+</style>
+
+<div id="app">
+  <div class="stage" id="stage">
+    <div class="question" id="question"></div>
+    <div class="answer" id="answer" contenteditable="true" spellcheck="false" role="textbox" aria-multiline="true" aria-label="こたえを入力"></div>
+  </div>
+  <div class="progress" id="progress"></div>
+  <div class="hint" id="hint">Enter で次へ　·　Shift+Enter で改行　·　Esc で今日はここまで</div>
+</div>
+
+<div class="thinking" id="thinking" hidden><span class="thinking-dot"></span></div>
+
+<div class="recap" id="recap" hidden>
+  <div class="recap-list" id="recapList"></div>
+  <button class="restart" id="restart">もう一度、はじめる</button>
+</div>
+
+<button class="archive-btn" id="archiveBtn" aria-label="これまでの記録を見る"></button>
+
+<div class="overlay" id="overlay" hidden>
+  <button class="overlay-close" id="overlayClose" aria-label="閉じる">×</button>
+  <div class="overlay-label" id="overlayLabel">これまでのことば</div>
+  <div class="scatter-layer" id="scatterRaw"></div>
+  <div class="scatter-layer" id="scatterAbstract" hidden></div>
+  <div class="analysis-layer" id="analysisLayer" hidden>
+    <p class="analysis-text" id="analysisText"></p>
+  </div>
+  <button class="center-orb" id="centerOrb" aria-label="次へ"></button>
+  <div class="overlay-hint" id="overlayHint"></div>
+</div>
+
+<script>
+(function(){
+  var OPENING_QUESTION = "何について話そうか。";
+
+  var INSTRUCTIONS = "あなたは、ある人が自分の頭の中のぐちゃぐちゃした考えに、そっと一緒に潜っていく相棒です。"
+    + "答えを出したり、まとめたり、導いたりする役目ではありません。ただ隣にいて、静かに耳を傾けます。"
+    + "相手はこれから、あなたの問いに一言、二言で答えていきます。\n\n"
+    + "あなたの仕事は、相手が今書いた内容を注意深く読み、そこに出てきた具体的な言葉やニュアンスを踏まえて、"
+    + "次に聞くべき問いを一つだけ考えることです。\n\n"
+    + "ルール:\n"
+    + "1. 誰にでも当てはまるテンプレート的な問い(『それについてどう感じる?』『なぜだと思う?』『本当はどうしたい?』のような"
+    + "使い古された言い方)は避け、相手が実際に使った言葉を引きながら、その人だけに刺さる問いを作ること。\n"
+    + "2. 尋問のように聞こえないこと。『〜ですか?』『〜ますか?』といった硬い聞き方は避け、隣で"
+    + "そっとつぶやくような、柔らかく優しい結び方にすること(例:『〜んだろうね』『〜のかもしれないね』"
+    + "『〜なのかな』『〜だったりする?』のような言い回し)。相手を評価したり急かしたりする響きを持たせないこと。\n"
+    + "3. 問いは一文だけ、短く。分析っぽくならないこと。\n"
+    + "4. まだ聞いていない角度を選ぶこと。同じ切り口を繰り返さない。\n"
+    + "5. 対話を自分の判断で終わらせないこと。相手が望むだけ、いつまでも続けてよい。\n\n"
+    + "必ず次のJSON形式だけを返すこと。前置きや説明、コードブロックの記号は一切つけないこと:\n"
+    + '{"question": "次に聞く問い"}';
+
+  var WRAP_SUGGESTION_NOTE = "\n\n追記: すでに10回以上やりとりが続いています。相手の様子を見て、次の問いの代わりに、"
+    + "『なんとなく、考えていることの輪郭が見えてきたかもしれないね。一度、確認してみる?』というような、"
+    + "気づきをそっと差し出す一言を返してもよい。これは終わりの合図ではなく、いま見えてきた形を一度眺めてみないか、"
+    + "という軽い誘いです。『終える』『区切る』といった言い方は避けること。相手がまだ話したい様子なら、通常の問いを続けること。";
+  var SUGGEST_WRAP_AFTER = 10;
+
+  var FALLBACK_QUESTIONS = [
+    "それについて、今どんな感じがしてるんだろうね。",
+    "その中で、一番はっきり見えているのはどれかな。",
+    "今、ひとつだけそっと手をつけられそうなことがあるとしたら、なんだろう。"
+  ];
+
+  var stage = document.getElementById('stage');
+  var qEl = document.getElementById('question');
+  var aEl = document.getElementById('answer');
+  var progressEl = document.getElementById('progress');
+  var hintEl = document.getElementById('hint');
+  var thinkingEl = document.getElementById('thinking');
+  var recapEl = document.getElementById('recap');
+  var recapListEl = document.getElementById('recapList');
+  var restartBtn = document.getElementById('restart');
+
+  var currentQuestion = OPENING_QUESTION;
+  var qaPairs = [];
+  var turns = [];
+  var fallbackIndex = 0;
+  var aiAvailable = true;
+  var transitioning = false;
+
+  function buildDots(){
+    progressEl.innerHTML = '';
+    var total = qaPairs.length + 1;
+    for (var i = 0; i < total; i++){
+      var d = document.createElement('div');
+      d.className = 'dot' + (i < qaPairs.length ? ' done' : ' current');
+      progressEl.appendChild(d);
+    }
+  }
+
+  function render(){
+    qEl.textContent = currentQuestion;
+    aEl.textContent = '';
+    buildDots();
+    focusAnswer();
+  }
+
+  function focusAnswer(){
+    aEl.focus();
+    var range = document.createRange();
+    range.selectNodeContents(aEl);
+    range.collapse(false);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function nextFallback(){
+    var q = FALLBACK_QUESTIONS[fallbackIndex % FALLBACK_QUESTIONS.length];
+    fallbackIndex++;
+    return q;
+  }
+
+  function askAI(){
+    return getCap('sample').then(function(sampleFn){
+      if (!sampleFn){ aiAvailable = false; return null; }
+      return sampleFn.json(turns, { modelTier: 'quick', cache: false }).then(function(res){
+        if (!res || typeof res.question !== 'string') throw { code: 'invalid_json' };
+        return res;
+      }).catch(function(){ aiAvailable = false; return null; });
+    });
+  }
+
+  function determineNext(){
+    if (turns.length === 0) turns.push({ role: 'user', content: INSTRUCTIONS });
+    turns[0].content = INSTRUCTIONS + (qaPairs.length >= SUGGEST_WRAP_AFTER ? WRAP_SUGGESTION_NOTE : '');
+    turns.push({ role: 'assistant', content: currentQuestion });
+    turns.push({ role: 'user', content: qaPairs[qaPairs.length - 1].answer || '(何も書かなかった)' });
+
+    if (!aiAvailable){
+      currentQuestion = nextFallback();
+      return Promise.resolve();
+    }
+
+    return askAI().then(function(res){
+      if (res && res.question && res.question.trim()){
+        currentQuestion = res.question.trim();
+      } else {
+        currentQuestion = nextFallback();
+      }
+    });
+  }
+
+  function advance(){
+    if (transitioning) return;
+    transitioning = true;
+    var text = aEl.innerText.replace(/\n+$/, '');
+    qaPairs.push({ question: currentQuestion, answer: text });
+    savePair(qaPairs[qaPairs.length - 1]);
+
+    stage.classList.add('fade-out');
+    hintEl.classList.add('hide');
+
+    setTimeout(function(){
+      stage.hidden = true;
+      thinkingEl.hidden = false;
+      determineNext().then(function(){
+        thinkingEl.hidden = true;
+        stage.hidden = false;
+        stage.classList.remove('fade-out');
+        stage.classList.add('fade-in');
+        render();
+        requestAnimationFrame(function(){
+          requestAnimationFrame(function(){
+            stage.classList.remove('fade-in');
+            hintEl.classList.remove('hide');
+            transitioning = false;
+          });
+        });
+      });
+    }, 520);
+  }
+
+  aEl.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey){
+      e.preventDefault();
+      advance();
+    } else if (e.key === 'Escape'){
+      e.preventDefault();
+      endSession();
+    }
+  });
+
+  function endSession(){
+    if (transitioning) return;
+    transitioning = true;
+    var text = aEl.innerText.replace(/\n+$/, '');
+    qaPairs.push({ question: currentQuestion, answer: text });
+    savePair(qaPairs[qaPairs.length - 1]);
+    stage.classList.add('fade-out');
+    hintEl.classList.add('hide');
+    setTimeout(function(){
+      showRecap();
+      transitioning = false;
+    }, 520);
+  }
+
+  stage.addEventListener('click', function(){ focusAnswer(); });
+
+  function showRecap(){
+    document.getElementById('app').style.display = 'none';
+    recapEl.hidden = false;
+    recapListEl.innerHTML = '';
+    qaPairs.forEach(function(pair){
+      var item = document.createElement('div');
+      item.className = 'recap-item';
+      var qDiv = document.createElement('div');
+      qDiv.className = 'q';
+      qDiv.textContent = pair.question;
+      var aDiv = document.createElement('div');
+      aDiv.className = 'a';
+      aDiv.textContent = pair.answer || '';
+      item.appendChild(qDiv);
+      item.appendChild(aDiv);
+      recapListEl.appendChild(item);
+    });
+    var items = recapListEl.querySelectorAll('.recap-item');
+    items.forEach(function(item, i){
+      setTimeout(function(){ item.classList.add('show'); }, 220 + i * 260);
+    });
+    setTimeout(function(){ restartBtn.classList.add('show'); }, 220 + items.length * 260 + 300);
+  }
+
+  restartBtn.addEventListener('click', function(){
+    currentQuestion = OPENING_QUESTION;
+    qaPairs = [];
+    turns = [];
+    fallbackIndex = 0;
+    aiAvailable = true;
+    recapEl.hidden = true;
+    restartBtn.classList.remove('show');
+    document.getElementById('app').style.display = 'flex';
+    render();
+  });
+
+  // -- persistence: db (private per-viewer) with localStorage fallback --
+
+  var LOCAL_KEY = 'thoughtSpaceEntries';
+  var capCache = {};
+  var sessionSentences = []; // always-available fallback: what was written in THIS page load
+
+  function getCap(name){
+    if (name in capCache) return capCache[name];
+    var p = (function(){
+      try{
+        if (typeof window.claude === 'undefined' || !window.claude.use) return Promise.resolve(null);
+        return window.claude.use(name).catch(function(){ return null; });
+      }catch(e){ return Promise.resolve(null); }
+    })();
+    capCache[name] = p;
+    return p;
+  }
+
+  function getUid(){
+    return getCap('user').then(function(user){
+      if (!user) return null;
+      return user.id().catch(function(){ return null; });
+    });
+  }
+
+  // Each answered question is saved to permanent storage the moment it's
+  // answered (the dialogue itself has no fixed end anymore). This is the
+  // lasting record; what the archive displays is a separate, session-scoped
+  // view (see loadAllSentences below).
+  function savePair(pair){
+    if (!pair.answer || !pair.answer.trim()) return;
+    sessionSentences.push(pair.answer.trim());
+    var record = { question: pair.question, answer: pair.answer, createdAt: new Date().toISOString() };
+    Promise.all([getCap('db'), getUid()]).then(function(res){
+      var db = res[0], uid = res[1];
+      if (db && uid){
+        db.doc('data/users/' + uid + '/profile').collection('entries').add(record).catch(function(){
+          saveLocal(record);
+        });
+      } else {
+        saveLocal(record);
+      }
+    }).catch(function(){ saveLocal(record); });
+  }
+
+  function saveLocal(record){
+    try{
+      var list = JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
+      list.push(record);
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(list));
+    }catch(e){}
+  }
+
+  function dedupe(list){
+    var seen = {};
+    var out = [];
+    list.forEach(function(s){
+      if (!seen[s]){ seen[s] = true; out.push(s); }
+    });
+    return out;
+  }
+
+  // Every answer is still permanently written to storage (savePair, above) —
+  // that's the lasting record. But what the archive SHOWS is scoped to just
+  // this open visit (sessionSentences): mixing today's words in with every
+  // past test run made the scattered view and its AI reading feel jumbled,
+  // so each visit now gets its own clean, freshly-generated pass.
+  function loadAllSentences(){
+    return Promise.resolve(dedupe(sessionSentences));
+  }
+
+  // -- archive overlay: raw words -> abstract feelings -> AI analysis --
+
+  var overlayEl = document.getElementById('overlay');
+  var overlayCloseBtn = document.getElementById('overlayClose');
+  var overlayLabel = document.getElementById('overlayLabel');
+  var scatterRaw = document.getElementById('scatterRaw');
+  var scatterAbstract = document.getElementById('scatterAbstract');
+  var analysisLayer = document.getElementById('analysisLayer');
+  var analysisText = document.getElementById('analysisText');
+  var centerOrb = document.getElementById('centerOrb');
+  var overlayHint = document.getElementById('overlayHint');
+  var archiveBtn = document.getElementById('archiveBtn');
+
+  var overlayStage = 'raw';
+  var rawSentences = [];
+  var abstractWords = [];
+
+  function scatterItems(container, items, cls, sizeMin, sizeMax){
+    container.innerHTML = '';
+    var n = items.length;
+    if (!n) return;
+    var vw = window.innerWidth || 1000, vh = window.innerHeight || 800;
+    var cols = Math.max(1, Math.round(Math.sqrt(n * (vw / vh))));
+    var rows = Math.ceil(n / cols);
+    var cellW = 100 / cols, cellH = 100 / rows;
+    var cells = [];
+    for (var r = 0; r < rows; r++){
+      for (var c = 0; c < cols; c++) cells.push([r, c]);
+    }
+    for (var i = cells.length - 1; i > 0; i--){
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = cells[i]; cells[i] = cells[j]; cells[j] = t;
+    }
+    items.forEach(function(text, idx){
+      var cell = cells[idx % cells.length];
+      var top = cell[0] * cellH + cellH * 0.18 + Math.random() * cellH * 0.5;
+      var left = cell[1] * cellW + cellW * 0.12 + Math.random() * cellW * 0.55;
+      top = Math.min(92, Math.max(8, top));
+      left = Math.min(90, Math.max(8, left));
+      var size = sizeMin + Math.random() * (sizeMax - sizeMin);
+      var rot = Math.random() * 6 - 3;
+      var el = document.createElement('div');
+      el.className = 'scatter-item ' + cls;
+      el.textContent = text;
+      el.style.top = top + '%';
+      el.style.left = left + '%';
+      el.style.fontSize = size + 'rem';
+      el.style.transform = 'translate(-50%, -50%) rotate(' + rot + 'deg)';
+      el.style.transitionDelay = (idx * 0.06) + 's';
+      container.appendChild(el);
+    });
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        container.querySelectorAll('.scatter-item').forEach(function(el){ el.classList.add('show'); });
+      });
+    });
+  }
+
+  function setHint(text){ overlayHint.textContent = text; }
+
+  function openOverlay(){
+    overlayStage = 'raw';
+    overlayEl.hidden = false;
+    overlayLabel.hidden = false;
+    overlayLabel.textContent = 'これまでのことば';
+    scatterRaw.hidden = false;
+    scatterRaw.style.opacity = '';
+    scatterAbstract.hidden = true;
+    scatterAbstract.style.opacity = '';
+    scatterAbstract.innerHTML = '';
+    analysisLayer.hidden = true;
+    analysisLayer.style.opacity = '';
+    analysisText.textContent = '';
+    analysisText.classList.remove('show');
+    centerOrb.classList.remove('done', 'loading');
+    centerOrb.hidden = false;
+    centerOrb.disabled = true;
+    setHint('集めています…');
+
+    loadAllSentences().then(function(sentences){
+      rawSentences = sentences;
+      if (!sentences.length){
+        setHint('まだ、ここに置かれた言葉はありません');
+        centerOrb.disabled = true;
+        return;
+      }
+      scatterItems(scatterRaw, sentences, 'raw', 0.85, 1.35);
+      getCap('sample').then(function(sampleFn){
+        if (sampleFn){
+          centerOrb.disabled = false;
+          setHint('中心の丸を押すと、感情の言葉に変わる');
+        } else {
+          setHint('この環境ではAIによる変換は使えません');
+        }
+      });
+    });
+  }
+
+  function closeOverlay(){
+    overlayEl.hidden = true;
+  }
+
+  function fadeLayer(hide, show){
+    hide.style.transition = 'opacity .5s ease';
+    hide.style.opacity = '0';
+    setTimeout(function(){
+      hide.hidden = true;
+      hide.style.opacity = '';
+      show.hidden = false;
+      show.style.opacity = '0';
+      requestAnimationFrame(function(){
+        requestAnimationFrame(function(){ show.style.transition = 'opacity .6s ease'; show.style.opacity = '1'; });
+      });
+    }, 520);
+  }
+
+  function runAbstraction(){
+    centerOrb.disabled = true;
+    centerOrb.classList.add('loading');
+    setHint('感じ取っています…');
+
+    getCap('sample').then(function(sampleFn){
+      if (!sampleFn){ setHint('この環境ではAIによる変換は使えません'); centerOrb.classList.remove('loading'); return; }
+      var prompt = '以下は、ある人が内省のために書き留めた言葉の断片です。それぞれの奥にある感情を、'
+        + '一語の名詞または形容詞(例:辛い、喪失感、苦しみ、安堵、焦り、迷い、寂しさ)に変換してください。\n'
+        + '日本語で、説明や記号を付けず、単語だけのJSON配列として返してください。似た感情は一つにまとめてよく、'
+        + '断片の数と厳密に一致させる必要はありません。\n\n断片:\n'
+        + rawSentences.map(function(s, i){ return (i + 1) + '. ' + s; }).join('\n');
+
+      sampleFn.json(prompt, { modelTier: 'quick' }).then(function(words){
+        if (!Array.isArray(words) || !words.length) throw { code: 'empty_completion' };
+        abstractWords = words.map(String).filter(function(w){ return w && w.trim(); });
+        overlayStage = 'abstract';
+        centerOrb.classList.remove('loading');
+        centerOrb.disabled = true;
+        overlayLabel.textContent = 'ことばのかたち';
+        setHint('');
+        scatterItems(scatterAbstract, abstractWords, 'abstract', 1.2, 2.8);
+        fadeLayer(scatterRaw, scatterAbstract);
+        setTimeout(function(){
+          centerOrb.disabled = false;
+          setHint('もう一度押すと、AIがここまでの感情を読み解く');
+        }, 700);
+      }).catch(function(e){
+        centerOrb.classList.remove('loading');
+        centerOrb.disabled = false;
+        setHint(hintForError(e));
+      });
+    });
+  }
+
+  function runAnalysis(){
+    centerOrb.disabled = true;
+    centerOrb.classList.add('loading');
+    setHint('考えています…');
+
+    getCap('sample').then(function(sampleFn){
+      if (!sampleFn){ setHint('この環境ではAIによる分析は使えません'); centerOrb.classList.remove('loading'); return; }
+      var prompt = 'ある人が内省ツールに書き留めてきた言葉の断片と、そこから抽出された感情の言葉があります。\n\n'
+        + '断片:\n' + rawSentences.map(function(s){ return '・' + s; }).join('\n')
+        + '\n\n感情の言葉:\n' + abstractWords.join('、')
+        + '\n\nこれら全体を通して見えてくる感情の傾向やパターンについて、温かく、断定せず、押しつけがましくない口調で'
+        + '日本語で3〜4文の短い考察を書いてください。アドバイスや解決策ではなく、そっと気づきを差し出すような文章にしてください。';
+
+      sampleFn(prompt, { modelTier: 'default', cache: false }).then(function(result){
+        overlayStage = 'analysis';
+        centerOrb.classList.remove('loading');
+        centerOrb.classList.add('done');
+        overlayLabel.textContent = 'AIによる考察';
+        setHint('');
+        analysisText.textContent = result.text;
+        fadeLayer(scatterAbstract, analysisLayer);
+        setTimeout(function(){ analysisText.classList.add('show'); }, 560);
+      }).catch(function(e){
+        centerOrb.classList.remove('loading');
+        centerOrb.disabled = false;
+        setHint(hintForError(e));
+      });
+    });
+  }
+
+  function hintForError(e){
+    var code = e && e.code;
+    if (code === 'not_granted' || code === 'sampling_disabled') return 'AIの利用が許可されていません';
+    if (code === 'rate_limited') return '少し混み合っています。しばらくしてからもう一度';
+    if (code === 'refused') return 'うまく読み解けませんでした。もう一度押してみてください';
+    return 'うまくいきませんでした。もう一度押してみてください';
+  }
+
+  centerOrb.addEventListener('click', function(){
+    if (overlayStage === 'raw') runAbstraction();
+    else if (overlayStage === 'abstract') runAnalysis();
+  });
+
+  archiveBtn.addEventListener('click', openOverlay);
+  overlayCloseBtn.addEventListener('click', closeOverlay);
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && !overlayEl.hidden) closeOverlay();
+  });
+
+  render();
+})();
+</script>
