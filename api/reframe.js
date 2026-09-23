@@ -34,8 +34,15 @@ module.exports = async function handler(req, res) {
       maxTokens: 500,
     });
 
-    const parsed = extractJson(raw);
-    if (!Array.isArray(parsed) || !parsed.length) throw new Error("bad_shape");
+    let parsed = extractJson(raw);
+    if (parsed && !Array.isArray(parsed) && typeof parsed === "object") {
+      const firstArray = Object.values(parsed).find(Array.isArray);
+      if (firstArray) parsed = firstArray;
+    }
+    if (!Array.isArray(parsed) || !parsed.length) {
+      const err = new Error("bad_shape, raw=" + raw.slice(0, 300));
+      throw err;
+    }
 
     const pairs = parsed
       .map(function (p) {
