@@ -225,6 +225,80 @@
     z-index:5;
   }
   .archive-btn:hover, .archive-btn:focus-visible{ opacity:.9; transform:scale(1.3); }
+  .past-btn{ right:auto; left:1.8rem; }
+
+  .past-list{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:1.3rem;
+    padding:12vh 6vw 6vh;
+    overflow-y:auto;
+  }
+  .past-empty{
+    color:#3a3630;
+    font-size:.85rem;
+    margin-top:2rem;
+  }
+  .past-item{
+    width:min(560px, 88vw);
+    text-align:left;
+    padding:0 0 1.1rem;
+    border-bottom:1px solid var(--hairline);
+    background:none;
+    border-left:none;
+    border-right:none;
+    border-top:none;
+    color:inherit;
+    font-family:inherit;
+    cursor:pointer;
+  }
+  .past-item .date{
+    font-size:.7rem;
+    letter-spacing:.05em;
+    color:var(--ink-dim);
+    font-family:'Shippori Mincho', serif;
+  }
+  .past-item .preview{
+    margin-top:.5rem;
+    font-size:.95rem;
+    font-weight:300;
+    line-height:1.6;
+    color:var(--ink);
+    overflow:hidden;
+    text-overflow:ellipsis;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    transition:color .3s ease;
+  }
+  .past-item:hover .preview, .past-item:focus-visible .preview{ color:var(--ember); }
+
+  .past-detail{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:2rem;
+    padding:12vh 6vw 6vh;
+    overflow-y:auto;
+  }
+
+  .text-link{
+    background:none;
+    border:none;
+    color:#4a4540;
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    font-size:.78rem;
+    letter-spacing:.08em;
+    cursor:pointer;
+    padding:.4rem .8rem;
+    transition:color .3s ease;
+  }
+  .text-link:hover, .text-link:focus-visible{ color:var(--ember); }
 
   /* archive overlay: raw words -> abstract feelings -> AI analysis */
   .overlay{
@@ -393,6 +467,15 @@
   <div class="overlay-hint" id="overlayHint"></div>
 </div>
 
+<button class="archive-btn past-btn" id="pastBtn" aria-label="過去の相談・新しい相談"></button>
+
+<div class="overlay" id="pastOverlay" hidden>
+  <button class="overlay-close" id="pastClose" aria-label="閉じる">×</button>
+  <div class="overlay-label">これまでの相談</div>
+  <div class="past-list" id="pastList"></div>
+  <div class="past-detail" id="pastDetail" hidden></div>
+</div>
+
 <script>
 (function(){
   var OPENING_QUESTION = "何について話そうか。";
@@ -508,6 +591,9 @@
       e.preventDefault();
       advance();
     } else if (e.key === 'Escape'){
+      // An overlay open on top gets this key instead — see the
+      // document-level listener further down.
+      if (!overlayEl.hidden || !pastOverlay.hidden) return;
       e.preventDefault();
       endSession();
     }
@@ -553,25 +639,39 @@
     setTimeout(function(){ restartBtn.classList.add('show'); }, 220 + items.length * 260 + 300);
   }
 
-  restartBtn.addEventListener('click', function(){
+  function startNewChat(){
+    conversationId = newConversationId();
     currentQuestion = OPENING_QUESTION;
     qaPairs = [];
     fallbackIndex = 0;
     recapEl.hidden = true;
     restartBtn.classList.remove('show');
+    pastOverlay.hidden = true;
     document.getElementById('app').style.display = 'flex';
     render();
-  });
+  }
+
+  restartBtn.addEventListener('click', startNewChat);
 
   // -- persistence: plain localStorage, no accounts --
 
   var LOCAL_KEY = 'mindSeedEntries';
   var sessionSentences = []; // what the archive shows: only THIS visit's words
 
+  function newConversationId(){
+    return Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+  }
+  var conversationId = newConversationId();
+
   function savePair(pair){
     if (!pair.answer || !pair.answer.trim()) return;
     sessionSentences.push(pair.answer.trim());
-    var record = { question: pair.question, answer: pair.answer, createdAt: new Date().toISOString() };
+    var record = {
+      question: pair.question,
+      answer: pair.answer,
+      createdAt: new Date().toISOString(),
+      conversationId: conversationId
+    };
     try{
       var list = JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
       list.push(record);
@@ -843,8 +943,120 @@
 
   archiveBtn.addEventListener('click', openOverlay);
   overlayCloseBtn.addEventListener('click', closeOverlay);
+
+  // -- past conversations: browse earlier threads, or start a fresh one --
+
+  var pastBtn = document.getElementById('pastBtn');
+  var pastOverlay = document.getElementById('pastOverlay');
+  var pastClose = document.getElementById('pastClose');
+  var pastList = document.getElementById('pastList');
+  var pastDetail = document.getElementById('pastDetail');
+
+  function loadPastConversations(){
+    var records = [];
+    try{
+      records = JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
+    }catch(e){}
+    var groups = {};
+    var order = [];
+    records.forEach(function(rec){
+      var id = rec.conversationId || 'legacy';
+      if (!groups[id]){ groups[id] = []; order.push(id); }
+      groups[id].push(rec);
+    });
+    return order.map(function(id){ return { id: id, pairs: groups[id] }; }).reverse();
+  }
+
+  function formatDate(iso){
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    function pad(n){ return String(n).padStart(2, '0'); }
+    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function renderPastList(){
+    pastDetail.hidden = true;
+    pastDetail.innerHTML = '';
+    pastList.hidden = false;
+    pastList.innerHTML = '';
+
+    var newChatBtn = document.createElement('button');
+    newChatBtn.className = 'text-link';
+    newChatBtn.textContent = '+ 新しい相談を始める';
+    newChatBtn.addEventListener('click', startNewChat);
+    pastList.appendChild(newChatBtn);
+
+    var convos = loadPastConversations();
+    if (!convos.length){
+      var empty = document.createElement('div');
+      empty.className = 'past-empty';
+      empty.textContent = 'まだ、過去の相談はありません';
+      pastList.appendChild(empty);
+      return;
+    }
+
+    convos.forEach(function(convo){
+      var firstWithAnswer = convo.pairs.find(function(p){ return p.answer && p.answer.trim(); });
+      var item = document.createElement('button');
+      item.className = 'past-item';
+      var dateEl = document.createElement('div');
+      dateEl.className = 'date';
+      dateEl.textContent = formatDate(convo.pairs[0] && convo.pairs[0].createdAt);
+      var previewEl = document.createElement('div');
+      previewEl.className = 'preview';
+      previewEl.textContent = firstWithAnswer ? firstWithAnswer.answer : '(こたえなし)';
+      item.appendChild(dateEl);
+      item.appendChild(previewEl);
+      item.addEventListener('click', function(){ showPastDetail(convo); });
+      pastList.appendChild(item);
+    });
+  }
+
+  function showPastDetail(convo){
+    pastList.hidden = true;
+    pastDetail.hidden = false;
+    pastDetail.innerHTML = '';
+
+    var back = document.createElement('button');
+    back.className = 'text-link';
+    back.textContent = '← 一覧に戻る';
+    back.addEventListener('click', renderPastList);
+    pastDetail.appendChild(back);
+
+    var listWrap = document.createElement('div');
+    listWrap.className = 'recap-list';
+    convo.pairs.forEach(function(pair){
+      var item = document.createElement('div');
+      item.className = 'recap-item show';
+      var qDiv = document.createElement('div');
+      qDiv.className = 'q';
+      qDiv.textContent = pair.question;
+      var aDiv = document.createElement('div');
+      aDiv.className = 'a';
+      aDiv.textContent = pair.answer || '';
+      item.appendChild(qDiv);
+      item.appendChild(aDiv);
+      listWrap.appendChild(item);
+    });
+    pastDetail.appendChild(listWrap);
+  }
+
+  function openPastOverlay(){
+    pastOverlay.hidden = false;
+    renderPastList();
+  }
+
+  function closePastOverlay(){
+    pastOverlay.hidden = true;
+  }
+
+  pastBtn.addEventListener('click', openPastOverlay);
+  pastClose.addEventListener('click', closePastOverlay);
+
   document.addEventListener('keydown', function(e){
-    if (e.key === 'Escape' && !overlayEl.hidden) closeOverlay();
+    if (e.key !== 'Escape') return;
+    if (!overlayEl.hidden) closeOverlay();
+    else if (!pastOverlay.hidden) closePastOverlay();
   });
 
   render();
