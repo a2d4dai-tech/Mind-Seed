@@ -78,17 +78,32 @@ async function askClaude({ model, system, userContent, maxTokens }) {
 }
 
 // Reads tolerantly, the same way the rest of Claude's tooling does: the
-// whole reply as JSON; else the first {...} or [...] found in it.
+// whole reply as JSON; else a ```-fenced block; else the first [...] or
+// {...} that actually parses (tried in that order, since a reply holding
+// several {...} objects loose inside a [...] array made a naive "match
+// whichever bracket appears" pick the wrong, unparseable span).
 function extractJson(text) {
+  const fenced = text.trim().match(/^```[a-zA-Z]*\s*([\s\S]*?)\s*```$/);
+  const body = fenced ? fenced[1] : text;
+
   try {
-    return JSON.parse(text);
+    return JSON.parse(body);
   } catch (e) {}
-  const m = text.match(/\{[\s\S]*\}/) || text.match(/\[[\s\S]*\]/);
-  if (m) {
+
+  const arr = body.match(/\[[\s\S]*\]/);
+  if (arr) {
     try {
-      return JSON.parse(m[0]);
-    } catch (e2) {}
+      return JSON.parse(arr[0]);
+    } catch (e) {}
   }
+
+  const obj = body.match(/\{[\s\S]*\}/);
+  if (obj) {
+    try {
+      return JSON.parse(obj[0]);
+    } catch (e) {}
+  }
+
   return null;
 }
 
